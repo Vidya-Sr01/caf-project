@@ -1,212 +1,335 @@
 import streamlit as st
-import pandas as pd
 import json
 import os
 import uuid
 from datetime import datetime
+import pandas as pd
 
-# ------------------------
-# PAGE CONFIGURATION
-# ------------------------
+# -------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------
+
 st.set_page_config(
-    page_title="CAF Dashboard",
-    page_icon="📚",
+    page_title="CAF | Context Assembly Framework",
+    page_icon="⚡",
     layout="wide"
 )
 
-# ------------------------
-# DATA FILE
-# ------------------------
-DATA_FILE = "caf_data.json"
+# -------------------------------------------------
+# FILES
+# -------------------------------------------------
 
-def load_data():
+DATA_FILE = "caf_history.json"
+
+# -------------------------------------------------
+# HELPERS
+# -------------------------------------------------
+
+def load_history():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return []
 
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
+def save_history(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-contexts = load_data()
+history = load_history()
 
-# ------------------------
+# -------------------------------------------------
+# STYLING
+# -------------------------------------------------
+
+st.markdown("""
+<style>
+.main-title{
+    font-size:38px;
+    font-weight:bold;
+}
+.section-card{
+    padding:20px;
+    border-radius:12px;
+    background:#f5f5f5;
+    margin-bottom:10px;
+}
+.metric-card{
+    padding:15px;
+    border-radius:10px;
+    background:#fafafa;
+    border:1px solid #ddd;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------------------------
 # SIDEBAR
-# ------------------------
-st.sidebar.title("📚 CAF Menu")
+# -------------------------------------------------
 
-menu = st.sidebar.radio(
+st.sidebar.title("⚡ CAF v1.0")
+
+page = st.sidebar.radio(
     "Navigation",
-    ["Dashboard", "Add Context", "View Contexts", "Statistics"]
+    [
+        "New Instruction",
+        "History & Feedback",
+        "Dashboard"
+    ]
 )
 
-# ------------------------
+# -------------------------------------------------
 # DASHBOARD
-# ------------------------
-if menu == "Dashboard":
+# -------------------------------------------------
 
-    st.title("📚 Context Assembly Framework")
+if page == "Dashboard":
 
-    total_contexts = len(contexts)
+    st.markdown(
+        '<p class="main-title">CAF Dashboard</p>',
+        unsafe_allow_html=True
+    )
 
-    categories = set()
-    for c in contexts:
-        categories.add(c["category"])
+    total_records = len(history)
 
-    col1, col2, col3 = st.columns(3)
+    total_feedback = len(
+        [x for x in history if x.get("feedback")]
+    )
 
-    with col1:
-        st.metric("Total Contexts", total_contexts)
+    avg_rating = 0
 
-    with col2:
-        st.metric("Categories", len(categories))
+    ratings = [
+        x["rating"]
+        for x in history
+        if x.get("rating", 0) > 0
+    ]
 
-    with col3:
+    if ratings:
+        avg_rating = round(
+            sum(ratings) / len(ratings),
+            2
+        )
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
         st.metric(
-            "Current Date",
-            datetime.now().strftime("%d-%m-%Y")
+            "Instructions",
+            total_records
+        )
+
+    with c2:
+        st.metric(
+            "Feedback Entries",
+            total_feedback
+        )
+
+    with c3:
+        st.metric(
+            "Average Rating",
+            avg_rating
         )
 
     st.divider()
 
-    st.subheader("Recent Contexts")
+    if history:
 
-    if contexts:
+        df = pd.DataFrame(history)
 
-        df = pd.DataFrame(contexts)
+        st.subheader("Recent Records")
+
+        cols = [
+            "title",
+            "target_audience",
+            "repository",
+            "created_at"
+        ]
+
+        available = [
+            c for c in cols if c in df.columns
+        ]
 
         st.dataframe(
-            df[
-                [
-                    "title",
-                    "category",
-                    "timestamp"
-                ]
-            ],
+            df[available],
             use_container_width=True
         )
 
     else:
-        st.info("No contexts available.")
+        st.info("No records found.")
 
-# ------------------------
-# ADD CONTEXT
-# ------------------------
-elif menu == "Add Context":
+# -------------------------------------------------
+# NEW INSTRUCTION
+# -------------------------------------------------
 
-    st.title("➕ Add Context")
+elif page == "New Instruction":
 
-    title = st.text_input("Context Title")
+    st.markdown(
+        '<p class="main-title">New Instruction</p>',
+        unsafe_allow_html=True
+    )
 
-    category = st.selectbox(
-        "Category",
+    title = st.text_input(
+        "Instruction Title"
+    )
+
+    target_audience = st.selectbox(
+        "Target Audience",
         [
-            "Requirement",
-            "Design",
-            "Development",
-            "Testing",
-            "Documentation"
+            "Students",
+            "Researchers",
+            "Developers",
+            "Business Users",
+            "General Public"
         ]
     )
 
-    description = st.text_area("Description")
+    repository = st.text_input(
+        "Repository"
+    )
 
-    if st.button("Save Context"):
+    context = st.text_area(
+        "Context / Requirements",
+        height=180
+    )
 
-        if title and description:
+    if st.button(
+        "Generate Instruction",
+        use_container_width=True
+    ):
 
-            new_context = {
+        if title and context:
+
+            generated_content = f"""
+Instruction Title:
+{title}
+
+Target Audience:
+{target_audience}
+
+Repository:
+{repository}
+
+Generated Guidance:
+
+Based on the provided context,
+the system recommends developing
+content tailored for
+{target_audience}.
+
+Context Summary:
+{context}
+
+Recommended Actions:
+1. Analyze requirements.
+2. Organize information.
+3. Generate structured output.
+4. Validate and review results.
+5. Collect feedback.
+"""
+
+            record = {
                 "id": str(uuid.uuid4()),
                 "title": title,
-                "category": category,
-                "description": description,
-                "timestamp": datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                "target_audience": target_audience,
+                "repository": repository,
+                "context": context,
+                "generated_content": generated_content,
+                "created_at":
+                    datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                "rating": 0,
+                "feedback": ""
             }
 
-            contexts.append(new_context)
+            history.append(record)
 
-            save_data(contexts)
+            save_history(history)
 
-            st.success("Context Added Successfully")
+            st.success(
+                "Instruction Generated"
+            )
+
+            st.text_area(
+                "Generated Output",
+                generated_content,
+                height=300
+            )
 
         else:
             st.warning(
-                "Please enter title and description."
+                "Please enter title and context."
             )
 
-# ------------------------
-# VIEW CONTEXTS
-# ------------------------
-elif menu == "View Contexts":
+# -------------------------------------------------
+# HISTORY & FEEDBACK
+# -------------------------------------------------
 
-    st.title("📋 View Contexts")
+elif page == "History & Feedback":
 
-    search = st.text_input(
-        "Search Context"
+    st.markdown(
+        '<p class="main-title">History & Feedback</p>',
+        unsafe_allow_html=True
     )
 
-    filtered = []
+    if not history:
 
-    for c in contexts:
+        st.info(
+            "No generated instructions found."
+        )
 
-        if search.lower() in c["title"].lower():
-            filtered.append(c)
+    else:
 
-    if search == "":
-        filtered = contexts
-
-    if filtered:
-
-        for item in filtered:
+        for index, item in enumerate(history):
 
             with st.expander(
-                f"{item['title']} ({item['category']})"
+                item["title"]
             ):
 
                 st.write(
-                    f"**Description:** {item['description']}"
+                    f"**Target Audience:** "
+                    f"{item['target_audience']}"
                 )
 
                 st.write(
-                    f"**Created:** {item['timestamp']}"
+                    f"**Repository:** "
+                    f"{item['repository']}"
                 )
 
-    else:
-        st.warning(
-            "No matching contexts found."
-        )
+                st.write(
+                    item["generated_content"]
+                )
 
-# ------------------------
-# STATISTICS
-# ------------------------
-elif menu == "Statistics":
+                rating = st.slider(
+                    f"Rating {index}",
+                    1,
+                    5,
+                    value=max(
+                        1,
+                        item.get("rating", 1)
+                    )
+                )
 
-    st.title("📊 Statistics")
+                feedback = st.text_area(
+                    f"Feedback {index}",
+                    value=item.get(
+                        "feedback",
+                        ""
+                    )
+                )
 
-    if contexts:
+                if st.button(
+                    f"Save Feedback {index}"
+                ):
 
-        df = pd.DataFrame(contexts)
+                    history[index][
+                        "rating"
+                    ] = rating
 
-        category_counts = (
-            df["category"]
-            .value_counts()
-        )
+                    history[index][
+                        "feedback"
+                    ] = feedback
 
-        st.bar_chart(category_counts)
+                    save_history(history)
 
-        st.subheader(
-            "Category Distribution"
-        )
-
-        st.dataframe(
-            category_counts,
-            use_container_width=True
-        )
-
-    else:
-        st.info(
-            "Add contexts to view statistics."
-        )
+                    st.success(
+                        "Feedback Saved"
+                    )
